@@ -1,5 +1,6 @@
 import random
 import time
+from datetime import datetime
 import requests
 import functools
 import json
@@ -281,11 +282,15 @@ class JdSeckill(object):
         self.seckill_init_info = dict()
         self.seckill_url = dict()
         self.seckill_order_data = dict()
+        self.buy_time = datetime.strptime(global_config.getRaw('config', 'buy_time'), "%Y-%m-%d %H:%M:%S.%f")
         self.timers = Timer()
 
         self.session = self.spider_session.get_session()
         self.user_agent = self.spider_session.user_agent
         self.nick_name = None
+
+        self.user_name = None
+        self.product_name = None
 
     def login_by_qrcode(self):
         """
@@ -331,7 +336,7 @@ class JdSeckill(object):
         self._seckill()
 
     @check_login
-    def seckill_by_proc_pool(self, work_count=5):
+    def seckill_by_proc_pool(self, work_count=8):
         """
         多进程进行抢购
         work_count：进程数量
@@ -357,6 +362,10 @@ class JdSeckill(object):
         抢购
         """
         while True:
+            # 抢购3分钟后退出
+            current_time = datetime.now()
+            if (current_time - self.buy_time).total_seconds() > 3 * 60:
+                break
             try:
                 self.request_seckill_url()
                 while True:
@@ -464,10 +473,17 @@ class JdSeckill(object):
 
     def request_seckill_url(self):
         """访问商品的抢购链接（用于设置cookie等"""
-        logger.info('用户:{}'.format(self.get_username()))
-        logger.info('商品名称:{}'.format(self.get_sku_title()))
+        #logger.info('用户:{}'.format(self.get_username()))
+        #logger.info('商品名称:{}'.format(self.get_sku_title()))
+        if not self.user_name:
+            self.user_name = self.get_username()
+        if not self.product_name:
+            self.product_name = self.get_sku_title()
+        logger.info('用户:{}'.format(self.user_name))
+        logger.info('商品名称:{}'.format(self.product_name))
         self.timers.start()
-        self.seckill_url[self.sku_id] = self.get_seckill_url()
+        if not self.seckill_url or not self.seckill_url[self.sku_id]:
+            self.seckill_url[self.sku_id] = self.get_seckill_url()
         logger.info('访问商品的抢购连接...')
         headers = {
             'User-Agent': self.user_agent,
